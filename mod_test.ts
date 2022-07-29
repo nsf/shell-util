@@ -13,6 +13,7 @@ Deno.test("quoteString", () => {
   assertEquals(quoteString(`''`), `"''"`);
   assertEquals(quoteString(`'`), `"'"`);
   assertEquals(quoteString(`' '`), `"'"' '"'"`);
+  assertEquals(quoteString(``), `''`);
 });
 
 Deno.test("quote", () => {

@@ -19,6 +19,7 @@ type ShellArgumentType = string | number | boolean | BigInt;
  * Quote a string so that it's safe to use as a shell command argument.
  */
 export function quoteString(s: string): string {
+  if (!s) return "''";
   if (safeShellCharsRE.test(s)) return s;
   s = "'" + s.replace(singleQuoteSpanRE, (m) => `'"${m}"'`) + "'";
   s = s.replace(/^''/, "");

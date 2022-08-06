@@ -26,6 +26,12 @@ function binaryToString(bytes: Uint8Array, limit?: number): string {
   return buf;
 }
 
+function prettyPrintCmd(v: string): string {
+  // replace some special characters with their visible unicode counterparts
+  // see: https://en.wikipedia.org/wiki/C0_and_C1_control_codes
+  return v.replace(/\n/g, "␊").replace(/\t/g, "␉").replace(/\r/g, "␍");
+}
+
 function outputToString(v: string | Uint8Array, maxBytes?: number) {
   return typeof v === "string" ? v : binaryToString(v, maxBytes);
 }
@@ -126,6 +132,7 @@ export function formatShellResult(result: ShellResult | ShellResultBinary, opts?
   const maxBytes = opts?.maxBytes === "unlimited" ? undefined : Math.max(0, opts?.maxBytes ?? 320);
   let out = "";
   let err = "";
+  const cmd = prettyPrintCmd(result.cmd);
   if (!result.code) {
     // success
     if (opts?.verbose) {
@@ -135,7 +142,7 @@ export function formatShellResult(result: ShellResult | ShellResultBinary, opts?
     const hasOutput = !!out || !!err;
     const colon = hasOutput ? ":" : "";
     if (str) str += "\n";
-    str += green(`✔ ${result.cmd}`) + elapsedSuffix + colon;
+    str += green(`✔ ${cmd}`) + elapsedSuffix + colon;
   } else {
     // error
     if (!opts?.suppressOutput) {
@@ -145,7 +152,7 @@ export function formatShellResult(result: ShellResult | ShellResultBinary, opts?
     const hasOutput = !!out || !!err;
     const colon = hasOutput ? ":" : "";
     if (str) str += "\n";
-    str += red(`✘ ${result.cmd}`) + elapsedSuffix + brightRed(` (${result.code})`) + colon;
+    str += red(`✘ ${cmd}`) + elapsedSuffix + brightRed(` (${result.code})`) + colon;
   }
   if (out) {
     if (opts?.annotate ?? true) {

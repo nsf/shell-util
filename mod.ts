@@ -13,7 +13,7 @@ async function writeAll(w: Deno.Writer, arr: Uint8Array) {
   }
 }
 
-type ShellArgumentType = string | number | boolean | BigInt;
+export type ShellArgumentType = string | number | boolean | BigInt;
 
 /**
  * Quote a string so that it's safe to use as a shell command argument.
@@ -47,10 +47,7 @@ export function quoteString(s: string): string {
  *   assertEquals(v, `command 5 true -v 'this is a sentence'`);
  *   ```
  */
-export function quote(
-  pieces: TemplateStringsArray,
-  ...args: Array<ShellArgumentType[] | ShellArgumentType>
-) {
+export function quote(pieces: TemplateStringsArray, ...args: Array<ShellArgumentType[] | ShellArgumentType>) {
   let result = pieces[0];
   let i = 0;
   for (; i < args.length; i++) {
@@ -72,53 +69,105 @@ export function quote(
  * Result of a shell command execution.
  */
 export interface ShellResult {
+  /** Command exit status code. Typically zero for success and non-zero for a failed command. */
   code: number;
+  /** Standard output decoded as UTF-8 and trimmed (depending on `trim` option, see `ShellOptions`). */
   stdout: string;
+  /** Standard error output decoded as UTF-8 and trimmed (depending on `trim` option, see `ShellOptions`). */
   stderr: string;
+  /** Quoted command this `ShellResult` represents result of. Useful for printing and debugging. */
   cmd: string;
+  /**
+   * How many milliseconds it took executing this command. Default JS `Date` is used for measurement, thus precision
+   * may vary.
+   */
   elapsedMilliseconds: number;
+  /**
+   * Whether stdout/stderr trimming attempt was performed.
+   */
+  trimmed: boolean;
 }
 
 /**
  * Result of a shell command execution (raw binary form).
  */
 export interface ShellResultBinary {
+  /** Command exit status code. Typically zero for success and non-zero for a failed command. */
   code: number;
+  /** Standard output. */
   stdout: Uint8Array;
+  /** Standard error output. */
   stderr: Uint8Array;
+  /** Quoted command this `ShellResultBinary` represents result of. Useful for printing and debugging. */
   cmd: string;
+  /**
+   * How many milliseconds it took executing this command. Default JS `Date` is used for measurement, thus precision
+   * may vary.
+   */
   elapsedMilliseconds: number;
+  /**
+   * Whether stdout/stderr trimming attempt was performed (irrelevant for binary output).
+   */
+  trimmed?: undefined;
 }
 
 /**
  * Shell command execution options.
  */
 export interface ShellOptions {
-  /** Path to shell binary (default: `"/bin/bash"`) */
+  /**
+   * Path to shell binary.
+   *
+   * Default: `"/bin/bash"`
+   */
   shell?: string;
-  /** Arguments to invoke shell with, the last should be the "command" argument (default: `["-c"]`) */
+  /**
+   * Arguments to invoke shell with, the last should be the "command" argument.
+   *
+   * Default: `["-c"]`
+   */
   shellArgs?: string[];
-  /** Whether to trim textual stdout and stderr or not (default: `true`) */
+  /**
+   * Whether to trim textual stdout and stderr or not.
+   *
+   * Default: `true`
+   */
   trim?: boolean;
-  /** Environment variables to pass to the shell subprocess (default: `Deno.env.toObject()`) */
+  /**
+   * Environment variables to pass to the shell subprocess.
+   *
+   * Default: `Deno.env.toObject()`
+   */
   env?: { [index: string]: string };
-  /** Standard input to pass to the shell subprocess (default: `undefined`) */
+  /**
+   * Standard input to pass to the shell subprocess.
+   *
+   * Default: `undefined`
+   */
   stdin?: string | Uint8Array;
 }
 
-/**
- * This function produces a shell executing tag function.
- *
- * This one in particular produces a binary variant of a tag function. In most cases you should use the default
- * `sh` executor. Or a custom textual executor producer `shOpt`. The `shOptBin` should be used for rare cases
- * when you need to process binary output or for cases when default utf-8 text decoding does not suit your needs.
- */
-export function shOptBin(opt: ShellOptions) {
-  return async (
-    pieces: TemplateStringsArray,
-    ...args: Array<ShellArgumentType[] | ShellArgumentType>
-  ): Promise<ShellResultBinary> => {
-    const cmd = quote(pieces, ...args);
+export type PlainTagFunction<T> = (
+  pieces: TemplateStringsArray,
+  ...args: Array<ShellArgumentType[] | ShellArgumentType>
+) => Promise<T>;
+
+interface WrapTagFunction<T> extends PlainTagFunction<T> {
+  wrap<U>(pre: (cmd: string) => string, post: (result: T) => U, finalize?: () => void): PlainTagFunction<U>;
+}
+
+export interface TagFunction<T> extends WrapTagFunction<T> {
+  map<U>(f: (v: T) => U): PlainTagFunction<U>;
+}
+
+function augmentWrapTagFunction<T>(wf: WrapTagFunction<T>): TagFunction<T> {
+  const x: TagFunction<T> = wf as TagFunction<T>;
+  x.map = (f) => wf.wrap((v) => v, f);
+  return x;
+}
+
+function execOpt(opt: ShellOptions): (cmd: string) => Promise<ShellResultBinary> {
+  return async (cmd: string): Promise<ShellResultBinary> => {
     const t0 = Date.now();
     const p = Deno.run({
       cmd: [opt.shell ?? "/bin/bash", ...(opt.shellArgs ?? ["-c"]), cmd],
@@ -127,18 +176,9 @@ export function shOptBin(opt: ShellOptions) {
       stderr: "piped",
       stdout: "piped",
     });
-    const [status, stdout, stderr] = await Promise.all([
-      p.status(),
-      p.output(),
-      p.stderrOutput(),
-    ]);
+    const [status, stdout, stderr] = await Promise.all([p.status(), p.output(), p.stderrOutput()]);
     if (opt.stdin !== undefined) {
-      await writeAll(
-        p.stdin,
-        typeof opt.stdin === "string"
-          ? new TextEncoder().encode(opt.stdin)
-          : opt.stdin,
-      );
+      await writeAll(p.stdin, typeof opt.stdin === "string" ? new TextEncoder().encode(opt.stdin) : opt.stdin);
     }
     p.close();
     return {
@@ -152,34 +192,62 @@ export function shOptBin(opt: ShellOptions) {
 }
 
 /**
- * This function produces a shell executing tag function.
+ * Produce a shell executing tag function.
  *
- * In most cases you should use the default `sh` executor. Alternatively a custom binary executor producer `shOptBin`
- * is available when default utf-8 output decoding does not suit your needs.
+ * In most cases you should use the default `sh` executor instead.
+ *
+ * The output is decoded as utf-8 and returned as a string.
  */
-export function shOpt(opt: ShellOptions) {
-  const bin = shOptBin(opt);
-  return async (
-    pieces: TemplateStringsArray,
-    ...args: Array<ShellArgumentType[] | ShellArgumentType>
-  ): Promise<ShellResult> => {
-    const result = await bin(pieces, ...args);
+export function shOpt(opt: ShellOptions, output?: "utf-8"): TagFunction<ShellResult>;
+/**
+ * Produce a shell executing tag function.
+ *
+ * In most cases you should use the default `sh` executor instead.
+ *
+ * The output is returned as is.
+ */
+export function shOpt(opt: ShellOptions, output: "binary"): TagFunction<ShellResultBinary>;
+export function shOpt(
+  opt: ShellOptions,
+  output?: "binary" | "utf-8",
+): TagFunction<ShellResult | ShellResultBinary> {
+  const exec = execOpt(opt);
+  if (output === "binary") {
+    const f: WrapTagFunction<ShellResultBinary> = (pieces, ...args) => exec(quote(pieces, ...args));
+    f.wrap = (pre, post, finalize) => async (...args) => {
+      try {
+        return post(await exec(pre(quote(...args))));
+      } finally {
+        finalize?.();
+      }
+    };
+    return augmentWrapTagFunction(f);
+  }
+
+  const binaryToText = (result: ShellResultBinary): ShellResult => {
+    const shouldTrim = opt.trim ?? true;
+    const td = new TextDecoder();
     return {
       ...result,
-      stdout: trimMaybe(
-        new TextDecoder().decode(result.stdout),
-        opt.trim ?? true,
-      ),
-      stderr: trimMaybe(
-        new TextDecoder().decode(result.stderr),
-        opt.trim ?? true,
-      ),
+      stdout: trimMaybe(td.decode(result.stdout), shouldTrim),
+      stderr: trimMaybe(td.decode(result.stderr), shouldTrim),
+      trimmed: shouldTrim,
     };
   };
+
+  const f: WrapTagFunction<ShellResult> = async (pieces, ...args) => binaryToText(await exec(quote(pieces, ...args)));
+  f.wrap = (pre, post, finalize) => async (...args) => {
+    try {
+      return post(binaryToText(await exec(pre(quote(...args)))));
+    } finally {
+      finalize?.();
+    }
+  };
+  return augmentWrapTagFunction(f);
 }
 
 /**
- * Shell executing tag function.
+ * Default shell executing tag function.
  *
  * This function will execute a formatted shell command and return the result. E.g.
  * ```

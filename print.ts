@@ -28,6 +28,8 @@ function binaryToString(bytes: Uint8Array, limit?: number): string {
 
 // Replace some special characters with their visible unicode counterparts.
 // See: https://en.wikipedia.org/wiki/C0_and_C1_control_codes
+//
+// formatShellResult uses this function unconditionally when printing the command.
 export function makeControlCharactersVisible(v: string): string {
   return v.replace(/\n/g, "␊").replace(/\t/g, "␉").replace(/\r/g, "␍");
 }

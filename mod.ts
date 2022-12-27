@@ -173,18 +173,42 @@ export type PlainTagFunction<T> = (
   ...args: Array<ShellArgumentType[] | ShellArgumentType>
 ) => Promise<T>;
 
-interface WrapTagFunction<T> extends PlainTagFunction<T> {
-  wrap<U>(pre: (cmd: string) => string, post: (result: T) => U, finalize?: () => void): PlainTagFunction<U>;
+export interface MapParameters<T, U> {
+  pre?: (cmd: string) => string;
+  post: (result: T) => U;
+  finalize?: () => void;
 }
 
-export interface TagFunction<T> extends WrapTagFunction<T> {
-  map<U>(f: (v: T) => U): PlainTagFunction<U>;
+export interface TagFunction<T> extends PlainTagFunction<T> {
+  map<U>(post: ((result: T) => U) | MapParameters<T, U>): TagFunction<U>;
 }
 
-function augmentWrapTagFunction<T>(wf: WrapTagFunction<T>): TagFunction<T> {
-  const x: TagFunction<T> = wf as TagFunction<T>;
-  x.map = (f) => wf.wrap((v) => v, f);
-  return x;
+function wrapTagFunction<T>(
+  f: PlainTagFunction<T>,
+  exec: (cmd: string) => Promise<T>,
+  finalizers: Array<(() => void) | undefined> = [],
+): TagFunction<T> {
+  const ff = f as TagFunction<T>;
+  ff.map = (arg) => {
+    const p = typeof arg === "function" ? { post: arg } : arg;
+    const nestedExec = async (cmd: string) => p.post(await exec(p.pre ? p.pre(cmd) : cmd));
+    return wrapTagFunction(
+      async (...args) => {
+        try {
+          const q = quote(...args);
+          return p.post(await exec(p.pre ? p.pre(q) : q));
+        } finally {
+          for (const f of finalizers) {
+            f?.();
+          }
+          p.finalize?.();
+        }
+      },
+      nestedExec,
+      [...finalizers, p.finalize],
+    );
+  };
+  return ff;
 }
 
 function execOpt(opt: ShellOptions): (cmd: string) => Promise<ShellResultBinary> {
@@ -234,15 +258,7 @@ export function shOpt(
 ): TagFunction<ShellResult | ShellResultBinary> {
   const exec = execOpt(opt);
   if (output === "binary") {
-    const f: WrapTagFunction<ShellResultBinary> = (pieces, ...args) => exec(quote(pieces, ...args));
-    f.wrap = (pre, post, finalize) => async (...args) => {
-      try {
-        return post(await exec(pre(quote(...args))));
-      } finally {
-        finalize?.();
-      }
-    };
-    return augmentWrapTagFunction(f);
+    return wrapTagFunction((pieces, ...args) => exec(quote(pieces, ...args)), exec);
   }
 
   const binaryToText = (result: ShellResultBinary): ShellResult => {
@@ -255,16 +271,8 @@ export function shOpt(
       trimmed: shouldTrim,
     };
   };
-
-  const f: WrapTagFunction<ShellResult> = async (pieces, ...args) => binaryToText(await exec(quote(pieces, ...args)));
-  f.wrap = (pre, post, finalize) => async (...args) => {
-    try {
-      return post(binaryToText(await exec(pre(quote(...args)))));
-    } finally {
-      finalize?.();
-    }
-  };
-  return augmentWrapTagFunction(f);
+  const textExec = async (cmd: string) => binaryToText(await exec(cmd));
+  return wrapTagFunction(async (pieces, ...args) => await textExec(quote(pieces, ...args)), textExec);
 }
 
 /**

@@ -1,6 +1,6 @@
 import type { ShellResult, ShellResultBinary } from "./mod.ts";
-import { colors } from "https://deno.land/x/cliffy@v0.24.3/ansi/mod.ts";
-import { encode as encodeToHex } from "https://deno.land/std@0.150.0/encoding/hex.ts";
+import { colors } from "./deps/cliffy_ansi.ts";
+import { encode as encodeToHex } from "./deps/std_encoding_hex.ts";
 
 // Cloning Go's hex.Dump style here.
 function binaryToString(bytes: Uint8Array, limit?: number): string {
@@ -26,9 +26,9 @@ function binaryToString(bytes: Uint8Array, limit?: number): string {
   return buf;
 }
 
-function prettyPrintCmd(v: string): string {
-  // replace some special characters with their visible unicode counterparts
-  // see: https://en.wikipedia.org/wiki/C0_and_C1_control_codes
+// Replace some special characters with their visible unicode counterparts.
+// See: https://en.wikipedia.org/wiki/C0_and_C1_control_codes
+export function makeControlCharactersVisible(v: string): string {
   return v.replace(/\n/g, "␊").replace(/\t/g, "␉").replace(/\r/g, "␍");
 }
 
@@ -114,6 +114,12 @@ export interface FormatOptions {
    * Default: `true`
    */
   colors?: boolean;
+  /**
+   * Omit cmd when printing the result.
+   *
+   * Default: `false`
+   */
+  omitCmd?: boolean;
 }
 
 /**
@@ -132,7 +138,7 @@ export function formatShellResult(result: ShellResult | ShellResultBinary, opts?
   const maxBytes = opts?.maxBytes === "unlimited" ? undefined : Math.max(0, opts?.maxBytes ?? 320);
   let out = "";
   let err = "";
-  const cmd = prettyPrintCmd(result.cmd);
+  const cmd = opts?.omitCmd ? "" : " " + makeControlCharactersVisible(result.cmd);
   if (!result.code) {
     // success
     if (opts?.verbose) {
@@ -142,7 +148,7 @@ export function formatShellResult(result: ShellResult | ShellResultBinary, opts?
     const hasOutput = !!out || !!err;
     const colon = hasOutput ? ":" : "";
     if (str) str += "\n";
-    str += green(`✔ ${cmd}`) + elapsedSuffix + colon;
+    str += green(`✔${cmd}`) + elapsedSuffix + colon;
   } else {
     // error
     if (!opts?.suppressOutput) {
@@ -152,7 +158,7 @@ export function formatShellResult(result: ShellResult | ShellResultBinary, opts?
     const hasOutput = !!out || !!err;
     const colon = hasOutput ? ":" : "";
     if (str) str += "\n";
-    str += red(`✘ ${cmd}`) + elapsedSuffix + brightRed(` (${result.code})`) + colon;
+    str += red(`✘${cmd}`) + elapsedSuffix + brightRed(` (${result.code})`) + colon;
   }
   if (out) {
     if (opts?.annotate ?? true) {

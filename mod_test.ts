@@ -1,4 +1,4 @@
-import { assertEquals } from "https://deno.land/std@0.150.0/testing/asserts.ts";
+import { assertEquals } from "./deps/std_testing_asserts.ts";
 import { quote, quoteString } from "./mod.ts";
 
 Deno.test("quoteString", () => {
@@ -25,5 +25,14 @@ Deno.test("quote", () => {
     const args = [5, true, "-v", "this is a sentence"];
     const v = quote`command ${args}`;
     assertEquals(v, `command 5 true -v 'this is a sentence'`);
+  }
+  {
+    assertEquals(quote`a ${[]} b`, `a b`);
+    assertEquals(quote`a${[]}b`, `ab`);
+    assertEquals(quote`${[]} b`, `b`);
+    assertEquals(quote`${[]}b`, `b`);
+    assertEquals(quote`a ${[]}`, `a`);
+    assertEquals(quote`a${[]}`, `a`);
+    assertEquals(quote`${[]}${[]} a ${[]}`, `a`);
   }
 });

@@ -35,6 +35,13 @@ export function quoteString(s: string): string {
  * in the array is coerced to string and processed via `quoteString` and then the results are joined with a
  * space in-between.
  *
+ * Empty arrays are handled in a special way sometimes resulting in spaces being removed. For example:
+ * ```
+ * quote`foo ${[]} bar`
+ * quote`foo ${[]}`
+ * ```
+ * will be formatted as `foo bar` and `foo` respectively.
+ *
  * Examples:
  *
  * - ```
@@ -52,12 +59,26 @@ export function quote(pieces: TemplateStringsArray, ...args: Array<ShellArgument
   let i = 0;
   for (; i < args.length; i++) {
     const a = args[i];
+    let isEmptyArrayArg = false;
     if (Array.isArray(a)) {
-      result += a.map((v) => quoteString(String(v))).join(" ");
+      const aarg = a.map((v) => quoteString(String(v))).join(" ");
+      if (aarg.length === 0) {
+        isEmptyArrayArg = true;
+      } else {
+        result += aarg;
+      }
     } else {
       result += quoteString(String(a));
     }
-    result += pieces[i + 1];
+    let p = pieces[i + 1];
+    if (isEmptyArrayArg) {
+      if (p.length > 0 && p[0] === " ") {
+        p = p.substring(1);
+      } else if (result.length > 0 && result[result.length - 1] === " ") {
+        result = result.substring(0, result.length - 1);
+      }
+    }
+    result += p;
   }
   for (++i; i < pieces.length; i++) {
     result += pieces[i];

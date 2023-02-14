@@ -221,10 +221,11 @@ function execOpt(opt: ShellOptions): (cmd: string) => Promise<ShellResultBinary>
       stderr: "piped",
       stdout: "piped",
     });
-    const [status, stdout, stderr] = await Promise.all([p.status(), p.output(), p.stderrOutput()]);
     if (opt.stdin !== undefined) {
       await writeAll(p.stdin, typeof opt.stdin === "string" ? new TextEncoder().encode(opt.stdin) : opt.stdin);
+      p.stdin.close();
     }
+    const [status, stdout, stderr] = await Promise.all([p.status(), p.output(), p.stderrOutput()]);
     p.close();
     return {
       code: status.code,

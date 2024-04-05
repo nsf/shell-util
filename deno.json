@@ -1,4 +1,7 @@
 {
+  "name": "@nsf/shell-util",
+  "version": "0.3.1",
+  "exports": "./mod.ts",
   "fmt": {
     "options": {
       "lineWidth": 120

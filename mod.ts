@@ -13,7 +13,7 @@ async function writeAll(w: Deno.Writer, arr: Uint8Array) {
   }
 }
 
-export type ShellArgumentType = string | number | boolean | BigInt;
+export type ShellArgumentType = string | number | boolean | bigint;
 
 /**
  * Quote a string so that it's safe to use as a shell command argument.
@@ -54,7 +54,7 @@ export function quoteString(s: string): string {
  *   assertEquals(v, `command 5 true -v 'this is a sentence'`);
  *   ```
  */
-export function quote(pieces: TemplateStringsArray, ...args: Array<ShellArgumentType[] | ShellArgumentType>) {
+export function quote(pieces: TemplateStringsArray, ...args: Array<ShellArgumentType[] | ShellArgumentType>): string {
   let result = pieces[0];
   let i = 0;
   for (; i < args.length; i++) {
@@ -312,4 +312,4 @@ export function shOpt(
  * console.log(result.stdout);
  * ```
  */
-export const sh = shOpt({});
+export const sh: TagFunction<ShellResult> = shOpt({});

@@ -1,5 +1,5 @@
-import { ShellResult, ShellResultBinary, TagFunction } from "./mod.ts";
-import { FormatOptions, formatShellResult, makeControlCharactersVisible } from "./print.ts";
+import type { ShellResult, ShellResultBinary, TagFunction } from "./mod.ts";
+import { type FormatOptions, formatShellResult, makeControlCharactersVisible } from "./print.ts";
 import { ansi, colors } from "./deps/cliffy_ansi.ts";
 
 const spinnerFrames = ["|", "/", "-", "\\"];

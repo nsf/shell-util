@@ -5,14 +5,6 @@ function trimMaybe(v: string, shouldTrim: boolean): string {
   return shouldTrim ? v.trim() : v;
 }
 
-async function writeAll(w: Deno.Writer, arr: Uint8Array) {
-  // This is copied from Deno's std lib just to avoid deps, the function seems simple enough to be included.
-  let nwritten = 0;
-  while (nwritten < arr.length) {
-    nwritten += await w.write(arr.subarray(nwritten));
-  }
-}
-
 export type ShellArgumentType = string | number | boolean | bigint;
 
 /**
@@ -214,23 +206,26 @@ function wrapTagFunction<T>(
 function execOpt(opt: ShellOptions): (cmd: string) => Promise<ShellResultBinary> {
   return async (cmd: string): Promise<ShellResultBinary> => {
     const t0 = Date.now();
-    const p = Deno.run({
-      cmd: [opt.shell ?? "/bin/bash", ...(opt.shellArgs ?? ["-c"]), cmd],
-      env: opt.env ?? Deno.env.toObject(),
+    const p = new Deno.Command(opt.shell ?? "/bin/bash", {
+      args: [...(opt.shellArgs ?? ["-c"]), cmd],
       stdin: "piped",
       stderr: "piped",
       stdout: "piped",
+      env: opt.env ?? Deno.env.toObject(),
     });
+    const cp = p.spawn();
     if (opt.stdin !== undefined) {
-      await writeAll(p.stdin, typeof opt.stdin === "string" ? new TextEncoder().encode(opt.stdin) : opt.stdin);
-      p.stdin.close();
+      const stdinBuf = typeof opt.stdin === "string" ? new TextEncoder().encode(opt.stdin) : opt.stdin;
+      const w = cp.stdin.getWriter();
+      await w.write(stdinBuf);
+      w.releaseLock();
     }
-    const [status, stdout, stderr] = await Promise.all([p.status(), p.output(), p.stderrOutput()]);
-    p.close();
+    await cp.stdin.close();
+    const output = await cp.output();
     return {
-      code: status.code,
-      stdout,
-      stderr,
+      code: output.code,
+      stdout: output.stdout,
+      stderr: output.stderr,
       cmd,
       elapsedMilliseconds: Date.now() - t0,
     };

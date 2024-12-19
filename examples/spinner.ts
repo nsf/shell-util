@@ -3,7 +3,7 @@ import { wrapWithSpinnerPrinter } from "../spinner.ts";
 
 const spinShE = wrapWithSpinnerPrinter(
   sh.map((result) => {
-    if (result.code !== 0) throw new Error("failure!");
+    if (result.code !== 0) throw new Error("non-zero result code!");
     return result;
   }),
   { annotate: false },

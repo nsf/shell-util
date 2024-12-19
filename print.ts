@@ -1,19 +1,18 @@
 import type { ShellResult, ShellResultBinary } from "./mod.ts";
-import { colors } from "./deps/cliffy_ansi.ts";
-import { encode as encodeToHex } from "./deps/std_encoding_hex.ts";
+import { colors } from "@cliffy/ansi/colors";
+import { encodeHex } from "@std/encoding/hex";
 
 // Cloning Go's hex.Dump style here.
 function binaryToString(bytes: Uint8Array, limit?: number): string {
   if (bytes.length === 0) return "";
   if (limit !== undefined) bytes = bytes.subarray(0, limit);
-  const hexBytes = encodeToHex(bytes);
+  const hexBytes = encodeHex(bytes);
   let buf = "";
-  const tdec = new TextDecoder();
   for (let offset = 0; offset < bytes.length; offset += 16) {
     if (offset !== 0) buf += "\n";
     const bslice = String.fromCharCode(...bytes.subarray(offset, offset + 16).map((v) => v < 32 || v > 126 ? 46 : v))
       .padEnd(16);
-    const hslice = tdec.decode(hexBytes.subarray(offset * 2, (offset + 16) * 2)).padEnd(32);
+    const hslice = hexBytes.substring(offset * 2, (offset + 16) * 2).padEnd(32);
 
     buf += `${offset.toString(16).padStart(8, "0")}  `;
     for (let i = 0; i < 16; i++) {

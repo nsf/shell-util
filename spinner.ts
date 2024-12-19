@@ -1,6 +1,7 @@
 import type { ShellResult, ShellResultBinary, TagFunction } from "./mod.ts";
 import { type FormatOptions, formatShellResult, makeControlCharactersVisible } from "./print.ts";
-import { ansi, colors } from "./deps/cliffy_ansi.ts";
+import { ansi } from "@cliffy/ansi";
+import { colors } from "@cliffy/ansi/colors";
 
 const spinnerFrames = ["|", "/", "-", "\\"];
 
@@ -23,7 +24,7 @@ export function wrapWithSpinnerPrinter<T extends ShellResult | ShellResultBinary
   let frame = 0;
   const nextFrame = () => {
     frame = (frame + 1) % spinnerFrames.length;
-    Deno.stdout.writeSync(ansi.cursorBackward(1).text(spinnerFrames[frame]).toBuffer());
+    Deno.stdout.writeSync(ansi.cursorBackward(1).text(spinnerFrames[frame]).bytes());
     timeout = setTimeout(nextFrame, 80);
   };
   const startSpinner = () => {
@@ -35,7 +36,7 @@ export function wrapWithSpinnerPrinter<T extends ShellResult | ShellResultBinary
   const stopSpinner = () => {
     clearTimeout(timeout);
     timeout = undefined;
-    Deno.stdout.writeSync(ansi.cursorBackward(1).eraseLineEnd.toBuffer());
+    Deno.stdout.writeSync(ansi.cursorBackward(1).eraseLineEnd.bytes());
   };
 
   let t0 = 0;

@@ -1,4 +1,4 @@
-import { assertEquals } from "./deps/std_testing_asserts.ts";
+import { assertEquals } from "@std/assert";
 import { quote, quoteString } from "./mod.ts";
 
 Deno.test("quoteString", () => {

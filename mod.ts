@@ -5,6 +5,9 @@ function trimMaybe(v: string, shouldTrim: boolean): string {
   return shouldTrim ? v.trim() : v;
 }
 
+/**
+ * Supported quote tag function argument type.
+ */
 export type ShellArgumentType = string | number | boolean | bigint;
 
 /**
@@ -160,17 +163,27 @@ export interface ShellOptions {
   stdin?: string | Uint8Array;
 }
 
+/**
+ * Generic definition of a shell tag function. Does not include .map() method.
+ */
 export type PlainTagFunction<T> = (
   pieces: TemplateStringsArray,
   ...args: Array<ShellArgumentType[] | ShellArgumentType>
 ) => Promise<T>;
 
+/**
+ * Full set of parameters that allows you to customize shell tag function execution stages.
+ */
 export interface MapParameters<T, U> {
   pre?: (cmd: string) => string;
   post: (result: T) => U;
   finalize?: () => void;
 }
 
+/**
+ * Generic definition of a shell tag function. Includes .map() method, which allows you to produce modified shell tag
+ * functions. See `examples/nested_map.ts` and `examples/basic_usage.ts`.
+ */
 export interface TagFunction<T> extends PlainTagFunction<T> {
   map<U>(post: ((result: T) => U) | MapParameters<T, U>): TagFunction<U>;
 }

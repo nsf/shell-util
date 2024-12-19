@@ -1,7 +1,11 @@
 {
   "name": "@nsf/shell-util",
-  "version": "0.4.0",
-  "exports": "./mod.ts",
+  "version": "0.4.1",
+  "exports": {
+    ".": "./mod.ts",
+    "./print": "./print.ts",
+    "./spinner": "./spinner.ts"
+  },
   "fmt": {
     "options": {
       "lineWidth": 120

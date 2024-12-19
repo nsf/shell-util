@@ -4,8 +4,16 @@ Shell scripting helper functions for deno.
 
 ## Basic usage
 
+Add the library to your project:
+
+```sh
+deno add jsr:@nsf/shell-util
+```
+
+Use it in the code:
+
 ```typescript
-import { sh } from "https://deno.land/x/shell-util/mod.ts";
+import { sh } from "@nsf/shell-util";
 
 const result = await sh`ls -l`;
 console.log(result.stdout);
@@ -16,8 +24,8 @@ console.log(result.stdout);
 Additional module for pretty printing the result of shell execution is provided. E.g.:
 
 ```typescript
-import { sh } from "https://deno.land/x/shell-util/mod.ts";
-import { printShellResult } from "https://deno.land/x/shell-util/print.ts";
+import { sh } from "@nsf/shell-util";
+import { printShellResult } from "@nsf/shell-util/print";
 
 printShellResult(await sh`ls -l`);
 ```

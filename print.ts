@@ -1,5 +1,5 @@
 import type { ShellResult, ShellResultBinary } from "./mod.ts";
-import { colors } from "@cliffy/ansi/colors";
+import { brightRed, gray, green, red } from "@std/fmt/colors";
 import { encodeHex } from "@std/encoding/hex";
 
 // Cloning Go's hex.Dump style here.
@@ -121,6 +121,18 @@ export interface FormatOptions {
    * Default: `false`
    */
   omitCmd?: boolean;
+  /**
+   * Success prefix. Prepended to command when printing with code === 0.
+   *
+   * Default: `"✔"`
+   */
+  successPrefix?: string;
+  /**
+   * Error prefix. Prepended to command when printing with code !== 0.
+   *
+   * Default: `"✘"`
+   */
+  errorPrefix?: string;
 }
 
 /**
@@ -129,17 +141,17 @@ export interface FormatOptions {
 export function formatShellResult(result: ShellResult | ShellResultBinary, opts?: FormatOptions): string {
   const col = opts?.colors ?? true;
   const thru = (v: string) => v;
-  const green = col ? colors.green : thru;
-  const red = col ? colors.red : thru;
-  const brightRed = col ? colors.brightRed : thru;
-  const gray = col ? colors.gray : thru;
+  const cgreen = col ? green : thru;
+  const cred = col ? red : thru;
+  const cbrightRed = col ? brightRed : thru;
+  const cgray = col ? gray : thru;
 
   let str = "";
   const elapsedSuffix = ` [${result.elapsedMilliseconds / 1000}s]`;
   const maxBytes = opts?.maxBytes === "unlimited" ? undefined : Math.max(0, opts?.maxBytes ?? 320);
   let out = "";
   let err = "";
-  const cmd = opts?.omitCmd ? "" : " " + makeControlCharactersVisible(result.cmd);
+  const cmd = opts?.omitCmd ? "" : makeControlCharactersVisible(result.cmd);
   if (!result.code) {
     // success
     if (opts?.verbose) {
@@ -149,7 +161,9 @@ export function formatShellResult(result: ShellResult | ShellResultBinary, opts?
     const hasOutput = !!out || !!err;
     const colon = hasOutput ? ":" : "";
     if (str) str += "\n";
-    str += green(`✔${cmd}`) + elapsedSuffix + colon;
+    let prefix = opts?.successPrefix ?? "✔";
+    if (prefix && cmd) prefix += " ";
+    str += cgreen(`${prefix}${cmd}`) + elapsedSuffix + colon;
   } else {
     // error
     if (!opts?.suppressOutput) {
@@ -159,12 +173,14 @@ export function formatShellResult(result: ShellResult | ShellResultBinary, opts?
     const hasOutput = !!out || !!err;
     const colon = hasOutput ? ":" : "";
     if (str) str += "\n";
-    str += red(`✘${cmd}`) + elapsedSuffix + brightRed(` (${result.code})`) + colon;
+    let prefix = opts?.errorPrefix ?? "✘";
+    if (prefix && cmd) prefix += " ";
+    str += cred(`${prefix}${cmd}`) + elapsedSuffix + cbrightRed(` (${result.code})`) + colon;
   }
   if (out) {
     if (opts?.annotate ?? true) {
       if (str) str += "\n";
-      str += gray(`[ STDOUT | ${outputStatus(result.stdout, result.trimmed, maxBytes)} ]`);
+      str += cgray(`[ STDOUT | ${outputStatus(result.stdout, result.trimmed, maxBytes)} ]`);
     }
     if (str) str += "\n";
     str += out;
@@ -172,7 +188,7 @@ export function formatShellResult(result: ShellResult | ShellResultBinary, opts?
   if (err) {
     if (opts?.annotate ?? true) {
       if (str) str += "\n";
-      str += gray(`[ STDERR | ${outputStatus(result.stderr, result.trimmed, maxBytes)} ]`);
+      str += cgray(`[ STDERR | ${outputStatus(result.stderr, result.trimmed, maxBytes)} ]`);
     }
     if (str) str += "\n";
     str += err;

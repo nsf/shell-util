@@ -1,4 +1,4 @@
-import { sh, type ShellResult } from "./mod.ts";
+import { sh, type ShellResult, type TagFunction } from "./mod.ts";
 import { type FormatOptions, formatShellResult } from "./print.ts";
 import { green, red, yellow } from "@std/fmt/colors";
 
@@ -107,7 +107,7 @@ export class TimeoutError extends Error {
 /**
  * Shell tag function wrapper that throws `ShellError` on non-zero exit codes.
  */
-export const shAction = sh.map((result) => {
+export const shAction: TagFunction<ShellResult> = sh.map((result) => {
   if (result.code !== 0) {
     throw new ShellError(result);
   }

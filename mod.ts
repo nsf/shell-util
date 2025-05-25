@@ -161,6 +161,12 @@ export interface ShellOptions {
    * Default: `undefined`
    */
   stdin?: string | Uint8Array;
+  /**
+   * AbortSignal to terminate the process in case of an emergency.
+   *
+   * Default: `undefined`
+   */
+  signal?: AbortSignal;
 }
 
 /**
@@ -225,6 +231,7 @@ function execOpt(opt: ShellOptions): (cmd: string) => Promise<ShellResultBinary>
       stderr: "piped",
       stdout: "piped",
       env: opt.env ?? Deno.env.toObject(),
+      signal: opt.signal,
     });
     const cp = p.spawn();
     if (opt.stdin !== undefined) {
@@ -261,6 +268,14 @@ export function shOpt(opt: ShellOptions, output?: "utf-8"): TagFunction<ShellRes
  * The output is returned as is.
  */
 export function shOpt(opt: ShellOptions, output: "binary"): TagFunction<ShellResultBinary>;
+/**
+ * Produce a shell executing tag function.
+ *
+ * In most cases you should use the default `sh` executor instead.
+ *
+ * This is the overloaded implementaion exported as is for reuse.
+ */
+export function shOpt(opt: ShellOptions, output?: "binary" | "utf-8"): TagFunction<ShellResult | ShellResultBinary>;
 export function shOpt(
   opt: ShellOptions,
   output?: "binary" | "utf-8",

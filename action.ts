@@ -1,4 +1,4 @@
-import { sh, type ShellResult, type TagFunction } from "./mod.ts";
+import { sh, ShellOptions, type ShellResult, ShellResultBinary, shOpt, type TagFunction } from "./mod.ts";
 import { type FormatOptions, formatShellResult } from "./print.ts";
 import { green, red, yellow } from "@std/fmt/colors";
 
@@ -51,8 +51,8 @@ export const defaultConfig: Config = {
  * Thrown by `shAction` when a command exits with a non-zero code.
  */
 export class ShellError extends Error {
-  result: ShellResult;
-  constructor(result: ShellResult) {
+  result: ShellResult | ShellResultBinary;
+  constructor(result: ShellResult | ShellResultBinary) {
     super(`${result.cmd} exited with code ${result.code}`);
     this.result = result;
     this.name = this.constructor.name;
@@ -71,7 +71,11 @@ function clearTimeoutCookie(tc: TimeoutCookie) {
   }
 }
 
-async function timeoutPromise<T>(tc: TimeoutCookie, p: Promise<T>, timeoutSeconds: number): Promise<T | TimeoutSymbol> {
+async function timeoutPromise<T>(
+  tc: TimeoutCookie,
+  p: Promise<T> | T,
+  timeoutSeconds: number,
+): Promise<T | TimeoutSymbol> {
   const timeoutPromise = new Promise<TimeoutSymbol>((resolve) => {
     tc.timeoutId = setTimeout(() => {
       resolve(timeoutSymbol);
@@ -115,6 +119,44 @@ export const shAction: TagFunction<ShellResult> = sh.map((result) => {
 });
 
 /**
+ * Produce a shell executing tag function.
+ *
+ * In most cases you should use the default `shAction` executor instead.
+ *
+ * The output is decoded as utf-8 and returned as a string.
+ */
+export function shActionOpt(opt: ShellOptions, output?: "utf-8"): TagFunction<ShellResult>;
+/**
+ * Produce a shell executing tag function.
+ *
+ * In most cases you should use the default `shAction` executor instead.
+ *
+ * The output is returned as is.
+ */
+export function shActionOpt(opt: ShellOptions, output: "binary"): TagFunction<ShellResultBinary>;
+/**
+ * Produce a shell executing tag function.
+ *
+ * In most cases you should use the default `shAction` executor instead.
+ *
+ * This is the overloaded implementaion exported as is for reuse.
+ */
+export function shActionOpt(
+  opt: ShellOptions,
+  output?: "binary" | "utf-8",
+): TagFunction<ShellResult | ShellResultBinary>;
+export function shActionOpt(
+  opt: ShellOptions,
+  output?: "binary" | "utf-8",
+): TagFunction<ShellResult | ShellResultBinary> {
+  return shOpt(opt, output).map((result) => {
+    if (result.code !== 0) {
+      throw new ShellError(result);
+    }
+    return result;
+  });
+}
+/**
  * A function that lets you group long-running actions into meaningful steps with nice logging.
  *
  * - Throwing an exception marks the action as failed, logs the error, and re-throws the exception.
@@ -123,16 +165,18 @@ export const shAction: TagFunction<ShellResult> = sh.map((result) => {
  *   or globally in `defaultConfig`.
  * - Throw a `SkipError` to log the action as skipped without re-throwing the exception.
  */
-export async function action<T>(label: string, f: () => Promise<T>, config?: Config): Promise<T> {
+export async function action<T>(label: string, f: (asig: AbortSignal) => Promise<T> | T, config?: Config): Promise<T> {
   const v = config?.verbosity ?? defaultConfig?.verbosity ?? "verbose";
   const te = new TextEncoder();
   if (v) Deno.stdout.writeSync(te.encode(`${label}... `));
   const tc: TimeoutCookie = { timeoutId: undefined };
   const t0 = Date.now();
   try {
+    const ac = new AbortController();
     const timeoutSeconds = config?.timeoutSeconds ?? defaultConfig?.timeoutSeconds ?? 120;
-    const result = await timeoutPromise(tc, f(), timeoutSeconds);
+    const result = await timeoutPromise(tc, f(ac.signal), timeoutSeconds);
     if (result === timeoutSymbol) {
+      ac.abort("timeout");
       throw new TimeoutError();
     } else {
       if (v) {
